@@ -10,7 +10,7 @@ To set up k workers distributively train 1/k of MNIST dataset, follow these step
 
 ## Discovery
 
-**2/13 IMPORTANT: FOUND GRADIENT REDUNDANCY**
+### 2/13 IMPORTANT: FOUND GRADIENT REDUNDANCY
 
 Since MNIST image is flattened to 1*784, the beginning and the end of the image are both -1 (black color?), the gradients on those areas are also the SAME
 
