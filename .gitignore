@@ -1,3 +1,10 @@
+# virtual environment
+gradient-compress/
+
+# dataset
+data
+*.pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -169,3 +176,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+legacy_code.txt
+old_worker.py
+server_deepseek.py
