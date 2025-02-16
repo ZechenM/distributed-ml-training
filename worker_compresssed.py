@@ -9,6 +9,7 @@ import struct
 from time import sleep
 import struct  # For packing/unpacking data size
 from typing import Any, Dict, List, Tuple, Set
+from compression import rle_compress, rle_decompress
 import time
 
 
@@ -20,6 +21,7 @@ class SimpleModel(nn.Module):
     def forward(self, x):
         x = x.view(-1, 28 * 28)  # Flatten the input
         return self.fc(x)
+
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
         self.worker_id = worker_id
@@ -45,18 +47,25 @@ class Worker:
 
     def send_data(self, sock, data):
         """Helper function to send data with a fixed-length header."""
-        # Serialize the data
-        data_bytes = pickle.dumps(data)
-
         # clock starts
         self.start_time = time.perf_counter()
-        
+
+        # Compress the data
+        compressed_data = rle_compress(data)
+        # Serialize the data
+        data_bytes = pickle.dumps(compressed_data)
+
+        # # clock starts (no compress overhead)
+        # self.start_time = time.perf_counter()
+
         # Send the size of the data first
         sock.sendall(struct.pack("!I", len(data_bytes)))
 
         # Send the actual data
         sock.sendall(data_bytes)
 
+        # print the compressed gradients
+        print(f"Worker {worker_id} sent COMPRESSED gradients {compressed_data}.")
 
     def recv_data(self, sock):
         """Helper function to receive data with a fixed-length header."""
@@ -73,13 +82,21 @@ class Worker:
             if not packet:
                 return None
             data += packet
+
+        # # clock ends (no decompress overhead)
+        # self.end_time = time.perf_counter()
+        # self.calc_network_latency()
+
+        # Deserialize the compressed data
+        compressed_data = pickle.loads(data)
+        # Decompress the data using RLE
+        final_data = rle_decompress(compressed_data)
         
         # clock ends
         self.end_time = time.perf_counter()
         self.calc_network_latency()
         
-        return pickle.loads(data)
-
+        return final_data
 
     def send_recv(self, gradients) -> Tuple[bool, Any]:
         # Send gradients to the server
@@ -90,16 +107,12 @@ class Worker:
             # Send gradients
             self.send_data(s, gradients)
 
-            # print the gradients
-            print(f"Worker {worker_id} sent gradients {gradients}.")
-
             # Receive averaged gradients
             avg_gradients = self.recv_data(s)
             if avg_gradients is None:
                 return (False, None)
 
         return (True, avg_gradients)
-
 
     def train_worker(self):
         # Create a model
@@ -126,7 +139,7 @@ class Worker:
                     print(f"Gradient size for {name}: {grad.size()}")
 
                 # Send gradients to the server
-                update, avg_gradients = self.send_recv(gradients)
+                update, avg_gradients = self.send_recv(gradients) 
 
                 if not update:
                     print(f"Worker {worker_id} failed to receive averaged gradients.")
@@ -149,10 +162,10 @@ if __name__ == "__main__":
         print("Invalid usage.")
         print("USAGE: python worker.py <WORKER_ID>")
         sys.exit(1)
-    
+
     worker_id = int(sys.argv[1])  # Worker ID (0, 1, 2)
     sleep(3)  # Wait for all the other workers to be ready
-
+    
     # Create a worker
     worker = Worker(worker_id)
     worker.train_worker()

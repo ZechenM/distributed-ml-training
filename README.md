@@ -17,3 +17,9 @@ Since MNIST image is flattened to 1*784, the beginning and the end of the image 
 That way, the next step will be to find **loseless compression algorithm that are good at leveraging REDUNDANCY**
 
 AND clock the 2 approaches, compare the latency
+
+## 2/16 added RLE encoding compression technique
+
+Pure Network latency (excludes compression overhead) decreases when gradients are compressed first and then sent out
+
+Would be worth comparing RLE compression with quantization and combining those two techniques to further minimize network latency

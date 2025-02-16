@@ -5,6 +5,9 @@ gradient-compress/
 data
 *.pkl
 
+# MISC
+legacy
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -179,3 +182,4 @@ cython_debug/
 legacy_code.txt
 old_worker.py
 server_deepseek.py
+worker_deepseek.py
