@@ -183,3 +183,5 @@ legacy_code.txt
 old_worker.py
 server_deepseek.py
 worker_deepseek.py
+
+logs/

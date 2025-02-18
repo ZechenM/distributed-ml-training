@@ -2,6 +2,20 @@
 
 ## Usage
 
+Update: the training is now orchestrated by shell script. Old usage is below new usage.
+
+run `./startAll.sh`
+
+If first time, data is not prepared, it will run the data generation script. After the data is generated, re-run the script.
+
+The shell script do error handling and self-cleanup on exit.
+
+Server and Workers print message can be found under `logs/`
+
+---
+
+**Old usage**
+
 To set up k workers distributively train 1/k of MNIST dataset, follow these steps:
 - `python3 prepare_data.py` to split MNIST into k parts where k is the number of workers
 - `python3 server.py` to let server listen for connections
