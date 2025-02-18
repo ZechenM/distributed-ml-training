@@ -101,3 +101,9 @@ else
     echo "Server did not start successfully."
     exit 1
 fi
+
+
+while true; do
+    # never self-terminate to keep server running
+    sleep 1  # Optional: Add a delay to avoid flooding the terminal
+done
