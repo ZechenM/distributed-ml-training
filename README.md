@@ -4,7 +4,9 @@
 
 Update: the training is now orchestrated by shell script. Old usage is below new usage.
 
-run `./startAll.sh`
+run `./startAll.sh` for normal server and worker
+
+`./startAll.sh -c` for server and worker with RLE gradient compression
 
 If first time, data is not prepared, it will run the data generation script. After the data is generated, re-run the script.
 
@@ -17,6 +19,7 @@ Server and Workers print message can be found under `logs/`
 **Old usage**
 
 To set up k workers distributively train 1/k of MNIST dataset, follow these steps:
+
 - `python3 prepare_data.py` to split MNIST into k parts where k is the number of workers
 - `python3 server.py` to let server listen for connections
 - set up k terminals, each runs `python3 worker.py {i}` where i is {0, 1, 2} if k = 3
