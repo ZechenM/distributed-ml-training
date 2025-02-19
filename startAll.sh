@@ -3,7 +3,7 @@
 # This script starts the server and workers.
 # Usage:
 #   ./startAll.sh      # Runs normal server and worker
-#   ./startAll.sh --c  # Runs compressed versions
+#   ./startAll.sh -c  # Runs compressed versions
 
 alias python=python3
 
@@ -15,7 +15,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Determine whether to use compressed versions
-if [[ "$1" == "--c" ]]; then
+if [[ "$1" == "-c" ]]; then
     SERVER_SCRIPT="server_compressed.py"
     WORKER_SCRIPT="worker_compressed.py"
     SERVER_LOG="./logs/server_compressed_log.txt"
