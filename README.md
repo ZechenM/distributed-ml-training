@@ -4,7 +4,9 @@
 
 Update: the training is now orchestrated by shell script. Old usage is below new usage.
 
-run `./startAll.sh`
+run `./startAll.sh` for normal server and worker
+
+`./startAll.sh --c` for server and worker with RLE gradient compression
 
 If first time, data is not prepared, it will run the data generation script. After the data is generated, re-run the script.
 
