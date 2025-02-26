@@ -13,6 +13,8 @@ from compression import rle_compress, rle_decompress, quantize_lossless_compress
 import time
 from models import myResNet, SimpleModel
 
+compress, decompress = rle_compress, rle_decompress
+
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
         self.worker_id = worker_id
@@ -43,7 +45,7 @@ class Worker:
         """Helper function to send data with a fixed-length header."""
 
         # Compress the data
-        compressed_data = quantize_lossless_compress(data)
+        compressed_data = compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
 
@@ -95,7 +97,7 @@ class Worker:
         # Deserialize the compressed data
         compressed_data = pickle.loads(data)
         # Decompress the data using loseless quantization
-        final_data = quantize_lossless_decompress(compressed_data)
+        final_data = decompress(compressed_data)
 
         return final_data
 

@@ -6,6 +6,7 @@ import struct
 from typing import Any, Dict, List, Tuple, Set
 from compression import rle_compress, rle_decompress, quantize_lossless_decompress, quantize_lossless_compress
 
+compress, decompress = rle_compress, rle_decompress
 
 class Server:
     def __init__(self, host="localhost", port=60000, num_workers=3):
@@ -73,7 +74,7 @@ class Server:
                 continue
 
             compressed_grad = pickle.loads(data)
-            grad = quantize_lossless_decompress(compressed_grad)
+            grad = decompress(compressed_grad)
             gradients.append(grad)
             print(f"Received gradients from worker {self.conn_addr_map[conn]}")
 
@@ -87,7 +88,7 @@ class Server:
             )
 
         # Compress the averaged gradients
-        compressed_avg_gradients = quantize_lossless_compress(avg_gradients)
+        compressed_avg_gradients = compress(avg_gradients)
         avg_gradients_data = pickle.dumps(compressed_avg_gradients)
 
         # Send averaged gradients back to all workers
