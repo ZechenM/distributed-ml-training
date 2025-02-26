@@ -4,7 +4,7 @@ import torch
 from threading import Thread
 import struct
 from typing import Any, Dict, List, Tuple, Set
-from compression import rle_compress, rle_decompress
+from compression import rle_compress, rle_decompress, quantize_lossless_decompress, quantize_lossless_compress
 
 
 class Server:
@@ -73,7 +73,7 @@ class Server:
                 continue
 
             compressed_grad = pickle.loads(data)
-            grad = rle_decompress(compressed_grad)
+            grad = quantize_lossless_decompress(compressed_grad)
             gradients.append(grad)
             print(f"Received gradients from worker {self.conn_addr_map[conn]}")
 
@@ -87,7 +87,7 @@ class Server:
             )
 
         # Compress the averaged gradients
-        compressed_avg_gradients = rle_compress(avg_gradients)
+        compressed_avg_gradients = quantize_lossless_compress(avg_gradients)
         avg_gradients_data = pickle.dumps(compressed_avg_gradients)
 
         # Send averaged gradients back to all workers
@@ -96,7 +96,7 @@ class Server:
             conn.sendall(struct.pack("!I", len(avg_gradients_data)))
             # Sendall the actual data
             conn.sendall(avg_gradients_data)
-            print(f"Sent averaged gradients to worker {self.conn_addr_map[conn]}")
+            print(f"Sent averaged gradients QUANTIZED to worker {self.conn_addr_map[conn]}")
 
     def run_server(self) -> None:
         while self.is_listening:

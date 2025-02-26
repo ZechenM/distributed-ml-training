@@ -9,18 +9,9 @@ import struct
 from time import sleep
 import struct  # For packing/unpacking data size
 from typing import Any, Dict, List, Tuple, Set
-from compression import rle_compress, rle_decompress
+from compression import rle_compress, rle_decompress, quantize_lossless_compress, quantize_lossless_decompress
 import time
-
-
-class SimpleModel(nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.fc = nn.Linear(28 * 28, 10)  # MNIST images are 28x28
-
-    def forward(self, x):
-        x = x.view(-1, 28 * 28)  # Flatten the input
-        return self.fc(x)
+from models import myResNet, SimpleModel
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
@@ -30,9 +21,12 @@ class Worker:
         self.network_latency_list = []
         self.load_data()
 
-    def calc_network_latency(self):
+    def calc_network_latency(self, is_send):
         self.network_latency_list.append(self.end_time - self.start_time)
-        print(f'Network latency: {self.end_time - self.start_time}')
+        if is_send:
+            print(f"Send Network latency: {self.end_time - self.start_time}")
+        else:
+            print(f"Recv Network latency: {self.end_time - self.start_time}")
         # reset after calculation
         self.start_time = 0
         self.end_time = 0
@@ -47,16 +41,16 @@ class Worker:
 
     def send_data(self, sock, data):
         """Helper function to send data with a fixed-length header."""
-        # clock starts
-        self.start_time = time.perf_counter()
 
         # Compress the data
-        compressed_data = rle_compress(data)
+        compressed_data = quantize_lossless_compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
 
-        # # clock starts (no compress overhead)
-        # self.start_time = time.perf_counter()
+        # ALL NETWORK LATENCY ARE CALCULATED ON THE WORKER SIDE
+        # ---------------------------------------------------------------------
+        # clock starts (no compress overhead)
+        self.start_time = time.perf_counter()
 
         # Send the size of the data first
         sock.sendall(struct.pack("!I", len(data_bytes)))
@@ -64,8 +58,13 @@ class Worker:
         # Send the actual data
         sock.sendall(data_bytes)
 
-        # print the compressed gradients
-        print(f"Worker {worker_id} sent COMPRESSED gradients {compressed_data}.")
+        # clock ends
+        self.end_time = time.perf_counter()
+        self.calc_network_latency(True)
+        # ---------------------------------------------------------------------
+
+        # # print the compressed gradients
+        # print(f"Worker {worker_id} sent COMPRESSED gradients {compressed_data}.")
 
     def recv_data(self, sock):
         """Helper function to receive data with a fixed-length header."""
@@ -75,6 +74,10 @@ class Worker:
             return None
         size = struct.unpack("!I", size_data)[0]
 
+        # ---------------------------------------------------------------------
+        # clock starts
+        self.start_time = time.perf_counter()
+        
         # Receive the actual data
         data = b""
         while len(data) < size:
@@ -83,19 +86,17 @@ class Worker:
                 return None
             data += packet
 
-        # # clock ends (no decompress overhead)
-        # self.end_time = time.perf_counter()
-        # self.calc_network_latency()
+        # clock ends (no decompress overhead)
+        self.end_time = time.perf_counter()
+        self.calc_network_latency(False)
+        # ---------------------------------------------------------------------
+        
 
         # Deserialize the compressed data
         compressed_data = pickle.loads(data)
-        # Decompress the data using RLE
-        final_data = rle_decompress(compressed_data)
-        
-        # clock ends
-        self.end_time = time.perf_counter()
-        self.calc_network_latency()
-        
+        # Decompress the data using loseless quantization
+        final_data = quantize_lossless_decompress(compressed_data)
+
         return final_data
 
     def send_recv(self, gradients) -> Tuple[bool, Any]:
@@ -116,7 +117,8 @@ class Worker:
 
     def train_worker(self):
         # Create a model
-        model = SimpleModel()
+        # model = SimpleModel()
+        model = myResNet()
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         criterion = nn.CrossEntropyLoss()
 
@@ -139,7 +141,7 @@ class Worker:
                     print(f"Gradient size for {name}: {grad.size()}")
 
                 # Send gradients to the server
-                update, avg_gradients = self.send_recv(gradients) 
+                update, avg_gradients = self.send_recv(gradients)
 
                 if not update:
                     print(f"Worker {worker_id} failed to receive averaged gradients.")
@@ -164,7 +166,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     worker_id = int(sys.argv[1])  # Worker ID (0, 1, 2)
-    sleep(3)  # Wait for all the other workers to be ready
+    # sleep(3)  # Wait for all the other workers to be ready
     
     # Create a worker
     worker = Worker(worker_id)
