@@ -14,7 +14,15 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Determine whether to use compressed versions
+# Install required Python packages
+if [ -f "requirements.txt" ]; then
+    echo "Installing required packages..."
+    pip install -r requirements.txt
+else
+    echo "requirements.txt not found. Skipping package installation."
+fi
+
+# Determine whether to use compressed or Galore versions
 if [[ "$1" == "-c" ]]; then
     SERVER_SCRIPT="server_compressed.py"
     WORKER_SCRIPT="worker_compressed.py"
@@ -22,6 +30,13 @@ if [[ "$1" == "-c" ]]; then
     WORKER0_LOG="./logs/worker_compressed_log0.txt"
     WORKER1_LOG="./logs/worker_compressed_log1.txt"
     WORKER2_LOG="./logs/worker_compressed_log2.txt"
+elif [[ "$1" == "-g" ]]; then
+    SERVER_SCRIPT="server_galore.py"
+    WORKER_SCRIPT="worker_galore.py"
+    SERVER_LOG="./logs/server_galore_log.txt"
+    WORKER0_LOG="./logs/worker_galore_log0.txt"
+    WORKER1_LOG="./logs/worker_galore_log1.txt"
+    WORKER2_LOG="./logs/worker_galore_log2.txt"
 else
     SERVER_SCRIPT="server.py"
     WORKER_SCRIPT="worker.py"
