@@ -13,6 +13,8 @@ from compression import rle_compress, rle_decompress, quantize_lossless_compress
 import time
 from models import myResNet, SimpleModel
 
+DEBUG = 1
+
 compress, decompress = rle_compress, rle_decompress
 
 class Worker:
@@ -48,6 +50,7 @@ class Worker:
         compressed_data = compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
+        if DEBUG: print(f"Send data size: {len(data_bytes)}")
 
         # ALL NETWORK LATENCY ARE CALCULATED ON THE WORKER SIDE
         # ---------------------------------------------------------------------

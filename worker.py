@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Tuple, Set
 import time
 from models import myResNet, SimpleModel
 
+DEBUG = 1
+
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
@@ -43,6 +45,7 @@ class Worker:
         """Helper function to send data with a fixed-length header."""
         # Serialize the data
         data_bytes = pickle.dumps(data)
+        if DEBUG: print(f"Send data size: {len(data_bytes)}")
 
         # clock starts
         self.start_time = time.perf_counter()
