@@ -21,6 +21,7 @@ class Worker:
         self.server_host = host
         self.server_port = port
         self.network_latency_list = []
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.load_data()
 
     def calc_network_latency(self, is_send):
@@ -38,7 +39,7 @@ class Worker:
 
     def load_data(self):
         # Load the dataloader for this worker
-        with open(f"dataloader_{worker_id}.pkl", "rb") as f:
+        with open(f"dataloader_{self.worker_id}.pkl", "rb") as f:
             self.dataloader = pickle.load(f)
 
     def send_data(self, sock, data):
@@ -94,7 +95,7 @@ class Worker:
         # Send gradients to the server
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.server_host, self.server_port))
-            print(f"Worker {worker_id} connected to server.")
+            print(f"Worker {self.worker_id} connected to server.")
 
             # Send gradients
             self.send_data(s, gradients)
@@ -113,13 +114,16 @@ class Worker:
     def train_worker(self):
         # Create a model
         # model = SimpleModel()
-        model = myResNet()
+        model = myResNet().to(self.device)
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         criterion = nn.CrossEntropyLoss()
 
         # Training loop
         for epoch in range(5):
             for batch_X, batch_y in self.dataloader:
+                # Move data to the device
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
                 # Forward pass
                 outputs = model(batch_X)
                 loss = criterion(outputs, batch_y)
@@ -129,7 +133,7 @@ class Worker:
                 loss.backward()
 
                 # Get gradients
-                gradients = {name: param.grad for name, param in model.named_parameters()}
+                gradients = {name: param.grad.cpu() for name, param in model.named_parameters()}
 
                 # Print the size of gradients
                 for name, grad in gradients.items():
@@ -139,19 +143,19 @@ class Worker:
                 update, avg_gradients = self.send_recv(gradients)
 
                 if not update:
-                    print(f"Worker {worker_id} failed to receive averaged gradients.")
+                    print(f"Worker {self.worker_id} failed to receive averaged gradients.")
                     continue
 
-                if DEBUG: print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
+                print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():
-                    param.grad = avg_gradients[name]
+                    param.grad = avg_gradients[name].to(self.device)
                 optimizer.step()
 
-            print(f"Worker {worker_id} completed epoch {epoch}")
+            print(f"Worker {self.worker_id} completed epoch {epoch}")
 
-        print(f"Worker {worker_id} finished training.")
+        print(f"Worker {self.worker_id} finished training.")
 
 
 if __name__ == "__main__":
