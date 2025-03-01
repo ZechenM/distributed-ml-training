@@ -3,7 +3,7 @@
 # This script starts the server and workers.
 # Usage:
 #   ./startAll.sh      # Runs normal server and worker
-#   ./startAll.sh -c   # Runs compressed versions  Amend: Deprecated. Define (non-)compression in {server/worker}_compressed.py
+#   ./startAll.sh -c  # Runs compressed versions
 
 alias python=python3
 
@@ -17,21 +17,13 @@ fi
 # Install required Python packages
 if [ -f "requirements.txt" ]; then
     echo "Installing required packages..."
-    pip install --quiet -r requirements.txt
+    pip install -r requirements.txt
 else
     echo "requirements.txt not found. Skipping package installation."
 fi
 
-# In order to keep previous logs, log files will store under logs/{current_time}/
-CURRENT_TIME=$(date +"%Y%m%d_%H%M%S")
-
-LOG_DIR="./logs/${CURRENT_TIME}"
-
-mkdir -p "${LOG_DIR}"
-
 # Determine whether to use compressed or Galore versions
 if [[ "$1" == "-c" ]]; then
-    # Deprecated. Will cleanup in futher PR.
     SERVER_SCRIPT="server_compressed.py"
     WORKER_SCRIPT="worker_compressed.py"
     SERVER_LOG="./logs/server_compressed_log.txt"
@@ -41,17 +33,17 @@ if [[ "$1" == "-c" ]]; then
 elif [[ "$1" == "-g" ]]; then
     SERVER_SCRIPT="server_galore.py"
     WORKER_SCRIPT="worker_galore.py"
-    SERVER_LOG="${LOG_DIR}/server_galore_log.txt"
-    WORKER0_LOG="${LOG_DIR}/worker_galore_log0.txt"
-    WORKER1_LOG="${LOG_DIR}/worker_galore_log1.txt"
-    WORKER2_LOG="${LOG_DIR}/worker_galore_log2.txt"
+    SERVER_LOG="./logs/server_galore_log.txt"
+    WORKER0_LOG="./logs/worker_galore_log0.txt"
+    WORKER1_LOG="./logs/worker_galore_log1.txt"
+    WORKER2_LOG="./logs/worker_galore_log2.txt"
 else
-    SERVER_SCRIPT="server_compressed.py"
-    WORKER_SCRIPT="worker_compressed.py"
-    SERVER_LOG="${LOG_DIR}/server_log.txt"
-    WORKER0_LOG="${LOG_DIR}/worker_log0.txt"
-    WORKER1_LOG="${LOG_DIR}/worker_log1.txt"
-    WORKER2_LOG="${LOG_DIR}/worker_log2.txt"
+    SERVER_SCRIPT="server.py"
+    WORKER_SCRIPT="worker.py"
+    SERVER_LOG="./logs/server_log.txt"
+    WORKER0_LOG="./logs/worker_log0.txt"
+    WORKER1_LOG="./logs/worker_log1.txt"
+    WORKER2_LOG="./logs/worker_log2.txt"
 fi
 
 # Check if any .pkl files exist
