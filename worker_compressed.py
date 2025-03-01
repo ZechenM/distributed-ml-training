@@ -13,8 +13,6 @@ from config import *
 import time
 from models import myResNet, SimpleModel
 
-DEBUG = 0
-
 
 print(f"Compression Method: {compression_method}")
 
