@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Tuple, Set
 import time
 from models import myResNet, SimpleModel
 
-DEBUG = 1
+DEBUG = 0
 
 
 class Worker:
@@ -45,7 +45,7 @@ class Worker:
         """Helper function to send data with a fixed-length header."""
         # Serialize the data
         data_bytes = pickle.dumps(data)
-        if DEBUG: print(f"Send data size: {len(data_bytes)}")
+        print(f"Send data size: {len(data_bytes)}")
 
         # clock starts
         self.start_time = time.perf_counter()
@@ -56,6 +56,11 @@ class Worker:
         # Send the actual data
         sock.sendall(data_bytes)
 
+        # waiting for server response (ACK)
+        ack = sock.recv(1)  # Block until acknowledgment is received
+        if ack != b'A':
+            raise RuntimeError("Acknowledgment not received")
+        
         # clock ends
         self.end_time = time.perf_counter()
         self.calc_network_latency(True)
@@ -95,10 +100,11 @@ class Worker:
             self.send_data(s, gradients)
 
             # print the gradients
-            print(f"Worker {worker_id} sent gradients {gradients}.")
+            if DEBUG: print(f"Worker {worker_id} sent gradients {gradients}.")
 
             # Receive averaged gradients
             avg_gradients = self.recv_data(s)
+            print(f"Recv data size: {len(avg_gradients)}")
             if avg_gradients is None:
                 return (False, None)
 
@@ -136,7 +142,7 @@ class Worker:
                     print(f"Worker {worker_id} failed to receive averaged gradients.")
                     continue
 
-                print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
+                if DEBUG: print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():

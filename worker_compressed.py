@@ -13,7 +13,7 @@ from compression import rle_compress, rle_decompress, quantize_lossless_compress
 import time
 from models import myResNet, SimpleModel
 
-DEBUG = 1
+DEBUG = 0
 
 compress, decompress = rle_compress, rle_decompress
 
@@ -50,7 +50,7 @@ class Worker:
         compressed_data = compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
-        if DEBUG: print(f"Send data size: {len(data_bytes)}")
+        print(f"Send data size: {len(data_bytes)}")
 
         # ALL NETWORK LATENCY ARE CALCULATED ON THE WORKER SIDE
         # ---------------------------------------------------------------------
@@ -63,6 +63,11 @@ class Worker:
         # Send the actual data
         sock.sendall(data_bytes)
 
+        # waiting for server response (ACK)
+        ack = sock.recv(1)  # Block until acknowledgment is received
+        if ack != b'A':
+            raise RuntimeError("Acknowledgment not received")
+        
         # clock ends
         self.end_time = time.perf_counter()
         self.calc_network_latency(True)
@@ -152,7 +157,7 @@ class Worker:
                     print(f"Worker {worker_id} failed to receive averaged gradients.")
                     continue
 
-                print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
+                if DEBUG: print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():
