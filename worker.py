@@ -102,6 +102,7 @@ class Worker:
 
             # print the gradients
             if DEBUG: print(f"Worker {worker_id} sent gradients {gradients}.")
+            print(f"Worker {self.worker_id} sent gradients {gradients}.")
 
             # Receive averaged gradients
             avg_gradients = self.recv_data(s)
@@ -146,7 +147,7 @@ class Worker:
                     print(f"Worker {self.worker_id} failed to receive averaged gradients.")
                     continue
 
-                print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
+                print(f"Worker {self.worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():
