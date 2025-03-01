@@ -1,6 +1,11 @@
 import torch
 from typing import Any, Dict, List, Tuple, Set
 
+
+def no_compress(data):
+    # a placeholder function for no compression
+    return data
+
 def rle_compress(data: Dict[str, torch.Tensor]) -> Dict[str, Tuple[List[Tuple[float, int]], Any]]:
     """Compress gradients using Run-Length Encoding (RLE)."""
     # {fc.weight: [(-0.1, 3), (0.2, 2), ...], fc.bias: [(0.0, 5), ...]}

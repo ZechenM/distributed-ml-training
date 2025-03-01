@@ -9,13 +9,12 @@ import struct
 from time import sleep
 import struct  # For packing/unpacking data size
 from typing import Any, Dict, List, Tuple, Set
-from compression import rle_compress, rle_decompress, quantize_lossless_compress, quantize_lossless_decompress
+from config import *
 import time
 from models import myResNet, SimpleModel
 
-DEBUG = 0
 
-compress, decompress = rle_compress, rle_decompress
+print(f"Compression Method: {compression_method}")
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):

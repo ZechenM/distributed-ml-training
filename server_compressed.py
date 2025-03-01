@@ -4,9 +4,10 @@ import torch
 from threading import Thread
 import struct
 from typing import Any, Dict, List, Tuple, Set
-from compression import rle_compress, rle_decompress, quantize_lossless_decompress, quantize_lossless_compress
+from config import *
 
-compress, decompress = rle_compress, rle_decompress
+
+print(f"Compression Method: {compression_method}")
 
 class Server:
     def __init__(self, host="localhost", port=60000, num_workers=3):
