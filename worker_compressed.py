@@ -13,6 +13,8 @@ from config import *
 import time
 from models import myResNet, SimpleModel
 
+DEBUG = 0
+
 
 print(f"Compression Method: {compression_method}")
 
@@ -49,6 +51,7 @@ class Worker:
         compressed_data = compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
+        print(f"Send data size: {len(data_bytes)}")
 
         # ALL NETWORK LATENCY ARE CALCULATED ON THE WORKER SIDE
         # ---------------------------------------------------------------------
@@ -61,6 +64,11 @@ class Worker:
         # Send the actual data
         sock.sendall(data_bytes)
 
+        # waiting for server response (ACK)
+        ack = sock.recv(1)  # Block until acknowledgment is received
+        if ack != b'A':
+            raise RuntimeError("Acknowledgment not received")
+        
         # clock ends
         self.end_time = time.perf_counter()
         self.calc_network_latency(True)

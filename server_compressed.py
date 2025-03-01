@@ -74,6 +74,9 @@ class Server:
                 print("Failed to receive data.")
                 continue
 
+            # response with ACK
+            conn.sendall(b'A')
+
             compressed_grad = pickle.loads(data)
             grad = decompress(compressed_grad)
             gradients.append(grad)

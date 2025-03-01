@@ -68,6 +68,9 @@ class Server:
                 print("Failed to receive data.")
                 continue
 
+            # response with ACK
+            conn.sendall(b'A')
+
             grad = pickle.loads(data)
             gradients.append(grad)
             print(f"Received gradients from worker {self.conn_addr_map[conn]}")
