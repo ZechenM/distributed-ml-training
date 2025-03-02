@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Tuple, Set
 from config import *
 import time
 from models import myResNet, SimpleModel
-
+from compression import *
 
 print(f"Compression Method: {compression_method}")
 
@@ -86,7 +86,7 @@ class Worker:
         # ---------------------------------------------------------------------
         # clock starts
         self.start_time = time.perf_counter()
-        
+
         # Receive the actual data
         data = b""
         while len(data) < size:
@@ -99,7 +99,6 @@ class Worker:
         self.end_time = time.perf_counter()
         self.calc_network_latency(False)
         # ---------------------------------------------------------------------
-        
 
         # Deserialize the compressed data
         compressed_data = pickle.loads(data)
@@ -145,9 +144,6 @@ class Worker:
                 # Get gradients
                 gradients = {name: param.grad for name, param in model.named_parameters()}
 
-                # Print the size of gradients
-                for name, grad in gradients.items():
-                    print(f"Gradient size for {name}: {grad.size()}")
 
                 # Send gradients to the server
                 update, avg_gradients = self.send_recv(gradients)

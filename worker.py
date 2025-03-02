@@ -14,6 +14,11 @@ from models import myResNet, SimpleModel
 
 DEBUG = 0
 
+# # some parameters for quantize_per_tensor
+# quantize = True
+# # 8 bits after the decimal point
+# scale = 1e-8
+# type = torch.float16
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
@@ -73,7 +78,7 @@ class Worker:
         if not size_data:
             return None
         size = struct.unpack("!I", size_data)[0]
-        
+
         # clock starts
         self.start_time = time.perf_counter()
 
@@ -136,9 +141,6 @@ class Worker:
                 # Get gradients
                 gradients = {name: param.grad.cpu() for name, param in model.named_parameters()}
 
-                # Print the size of gradients
-                for name, grad in gradients.items():
-                    print(f"Gradient size for {name}: {grad.size()}")
 
                 # Send gradients to the server
                 update, avg_gradients = self.send_recv(gradients)
@@ -146,8 +148,6 @@ class Worker:
                 if not update:
                     print(f"Worker {self.worker_id} failed to receive averaged gradients.")
                     continue
-
-                print(f"Worker {self.worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():

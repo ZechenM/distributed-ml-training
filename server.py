@@ -81,6 +81,8 @@ class Server:
         avg_gradients = {}
         for key in gradients[0].keys():
             avg_gradients[key] = torch.stack([grad[key] for grad in gradients]).mean(dim=0)
+        
+        print(f"Server is ready to send out averaged gradients {avg_gradients}.")
 
         avg_gradients_data = pickle.dumps(avg_gradients)
         for conn in self.connections:

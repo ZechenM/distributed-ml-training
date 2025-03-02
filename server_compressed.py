@@ -5,7 +5,7 @@ from threading import Thread
 import struct
 from typing import Any, Dict, List, Tuple, Set
 from config import *
-
+from compression import *
 
 print(f"Compression Method: {compression_method}")
 
@@ -87,7 +87,7 @@ class Server:
 
         avg_gradients = {}
         for key in gradients[0].keys():
-            avg_gradients[key] = torch.stack([grad[key] for grad in gradients]).mean(
+            avg_gradients[key] = torch.stack([grad[key].float() for grad in gradients]).mean(
                 dim=0
             )
 
@@ -101,7 +101,7 @@ class Server:
             conn.sendall(struct.pack("!I", len(avg_gradients_data)))
             # Sendall the actual data
             conn.sendall(avg_gradients_data)
-            print(f"Sent averaged gradients QUANTIZED to worker {self.conn_addr_map[conn]}")
+            print(f"Sent averaged gradients to worker {self.conn_addr_map[conn]}")
 
     def run_server(self) -> None:
         while self.is_listening:

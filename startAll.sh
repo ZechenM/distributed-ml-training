@@ -29,6 +29,8 @@ LOG_DIR="./logs/${CURRENT_TIME}"
 
 mkdir -p "${LOG_DIR}"
 
+echo "LOGS: ${LOG_DIR}"
+
 # Determine whether to use compressed or Galore versions
 if [[ "$1" == "-c" ]]; then
     # Deprecated. Will cleanup in futher PR.
