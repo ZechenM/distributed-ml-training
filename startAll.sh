@@ -2,8 +2,8 @@
 
 # This script starts the server and workers.
 # Usage:
-#   ./startAll.sh      # Runs normal server and worker
-#   ./startAll.sh -c   # Runs compressed versions  Amend: Deprecated. Define (non-)compression in {server/worker}_compressed.py
+#   ./startAll.sh      # Runs normal server and worker and compressed versions (specify in config.py and verify in logs)
+#   ./startAll.sh -g   # Runs Galore server and worker
 
 alias python=python3
 
@@ -31,16 +31,8 @@ mkdir -p "${LOG_DIR}"
 
 echo "LOGS: ${LOG_DIR}"
 
-# Determine whether to use compressed or Galore versions
-if [[ "$1" == "-c" ]]; then
-    # Deprecated. Will cleanup in futher PR.
-    SERVER_SCRIPT="server_compressed.py"
-    WORKER_SCRIPT="worker_compressed.py"
-    SERVER_LOG="./logs/server_compressed_log.txt"
-    WORKER0_LOG="./logs/worker_compressed_log0.txt"
-    WORKER1_LOG="./logs/worker_compressed_log1.txt"
-    WORKER2_LOG="./logs/worker_compressed_log2.txt"
-elif [[ "$1" == "-g" ]]; then
+# Determine whether to use Galore or compressed/non-compressed versions
+if [[ "$1" == "-g" ]]; then
     SERVER_SCRIPT="server_galore.py"
     WORKER_SCRIPT="worker_galore.py"
     SERVER_LOG="${LOG_DIR}/server_galore_log.txt"
