@@ -9,13 +9,13 @@ IF "%1"=="-c" (
     SET WORKER0_LOG=logs\worker_compressed_log0.txt
     SET WORKER1_LOG=logs\worker_compressed_log1.txt
     SET WORKER2_LOG=logs\worker_compressed_log2.txt
-) ELSE IF "%1"=="-g" (
-    SET SERVER_SCRIPT=server_galore.py
-    SET WORKER_SCRIPT=worker_galore.py
-    SET SERVER_LOG=logs\server_galore_log.txt
-    SET WORKER0_LOG=logs\worker_galore_log0.txt
-    SET WORKER1_LOG=logs\worker_galore_log1.txt
-    SET WORKER2_LOG=logs\worker_galore_log2.txt
+) ELSE IF "%1"=="-d" (
+    SET SERVER_SCRIPT=server.py
+    SET WORKER_SCRIPT=dynamic_bound_loss\worker_trainer.py
+    SET SERVER_LOG=logs\server_dynamic_bound_loss_log.txt
+    SET WORKER0_LOG=logs\worker_dynamic_bound_loss_log0.txt
+    SET WORKER1_LOG=logs\worker_dynamic_bound_loss_log1.txt
+    SET WORKER2_LOG=logs\worker_dynamic_bound_loss_log2.txt
 ) ELSE (
     SET SERVER_SCRIPT=server.py
     SET WORKER_SCRIPT=worker.py

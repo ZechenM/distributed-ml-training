@@ -1,2 +1,7 @@
+torch
 torchvision
-galore-torch
+transformers
+accelerate
+numpy
+scikit-learn
+datasets

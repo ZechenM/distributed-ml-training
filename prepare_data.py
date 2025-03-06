@@ -1,6 +1,9 @@
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Subset
 import pickle
+import os
+import torch
+
 
 def prepare_mnist_data():
     # Load the MNIST dataset
@@ -20,10 +23,72 @@ def prepare_mnist_data():
 
     return dataloaders
 
+def prepare_cifar100_data(total_samples=1125):
+    """
+    Prepare CIFAR-100 dataset for distributed training with VGG-13
+    Args:
+        total_samples (int): Total number of samples to use (default: 1125 for 375 samples per worker)
+    """
+    DATA_DIR = "./data/cifar100_data"
+    SPLIT_DIR = "./data/cifar100_splits"
+    TRAIN_SPLITS = 3
+    TEST_RATIO = 0.2  # 20% of the dataset is used for testing
+
+    os.makedirs(SPLIT_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    # Transformations for VGG-13
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),  # VGG-13 expects 224x224 images
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                          std=[0.229, 0.224, 0.225])
+    ])
+
+    print(f"Loading CIFAR-100 dataset (subset of {total_samples} samples)...")
+    
+    # Load CIFAR-100 dataset
+    dataset = datasets.CIFAR100(
+        root=DATA_DIR,
+        train=True,
+        download=True,
+        transform=transform
+    )
+    
+    # Select a subset of samples if specified
+    if total_samples is not None:
+        indices = torch.randperm(len(dataset))[:total_samples]
+        dataset = Subset(dataset, indices)
+    
+    # Split into train and test
+    num_test = int(len(dataset) * TEST_RATIO)
+    num_train = len(dataset) - num_test
+    train_dataset, test_dataset = random_split(dataset, [num_train, num_test])
+
+    # Split train dataset into 3 parts
+    split_size = num_train // TRAIN_SPLITS
+    split_sizes = [split_size] * (TRAIN_SPLITS - 1) + [num_train - split_size * (TRAIN_SPLITS - 1)]
+    train_splits = random_split(train_dataset, split_sizes)
+
+    # Save datasets for later use
+    torch.save(test_dataset, os.path.join(SPLIT_DIR, "test.pth"))
+    for i, split in enumerate(train_splits):
+        torch.save(split, os.path.join(SPLIT_DIR, f"train_{i}.pth"))
+        
+    print(f"Dataset preparation complete. Splits saved in {SPLIT_DIR}")
+    print(f"Total samples: {len(dataset)}")
+    print(f"Training samples: {num_train}")
+    print(f"Test samples: {num_test}")
+    print(f"Samples per worker: {split_size}")
+
 
 if __name__ == "__main__":
+    # Prepare MNIST data
     dataloaders = prepare_mnist_data()
     for i, dataloaders in enumerate(dataloaders):
         with open(f'dataloader_{i}.pkl', 'wb') as f:
             pickle.dump(dataloaders, f)
-    print("Data prepared and split into 3 dataloaders.")
+    print("MNIST data prepared and split into 3 dataloaders.")
+
+    # Prepare CIFAR-100 data (using 1125 samples for 375 per worker)
+    prepare_cifar100_data(total_samples=1125)
