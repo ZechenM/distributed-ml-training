@@ -23,7 +23,7 @@ def prepare_mnist_data():
 
     return dataloaders
 
-def prepare_cifar100_data(total_samples=1125):
+def prepare_cifar100_data(total_samples=375):
     """
     Prepare CIFAR-100 dataset for distributed training with VGG-13
     Args:
@@ -91,4 +91,4 @@ if __name__ == "__main__":
     print("MNIST data prepared and split into 3 dataloaders.")
 
     # Prepare CIFAR-100 data (using 1125 samples for 375 per worker)
-    prepare_cifar100_data(total_samples=1125)
+    prepare_cifar100_data(total_samples=375)

@@ -205,7 +205,7 @@ def custom_collate_fn(batch):
     }
 
 class Worker:
-    def __init__(self, worker_id, host="localhost", port=60000):
+    def __init__(self, worker_id, host="localhost", port=65432):
         self.worker_id = worker_id
         self.server_host = host
         self.server_port = port

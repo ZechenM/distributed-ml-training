@@ -30,13 +30,13 @@ if [[ "$1" == "-c" ]]; then
     WORKER0_LOG="./logs/worker_compressed_log0.txt"
     WORKER1_LOG="./logs/worker_compressed_log1.txt"
     WORKER2_LOG="./logs/worker_compressed_log2.txt"
-elif [[ "$1" == "-g" ]]; then
-    SERVER_SCRIPT="server_galore.py"
-    WORKER_SCRIPT="worker_galore.py"
-    SERVER_LOG="./logs/server_galore_log.txt"
-    WORKER0_LOG="./logs/worker_galore_log0.txt"
-    WORKER1_LOG="./logs/worker_galore_log1.txt"
-    WORKER2_LOG="./logs/worker_galore_log2.txt"
+elif [[ "$1" == "-d" ]]; then
+    SERVER_SCRIPT="server.py"
+    WORKER_SCRIPT="dynamic_bound_loss/worker_trainer.py"
+    SERVER_LOG=".logs/server_dynamic_bound_loss_log.txt"
+    WORKER0_LOG="./logs/worker_dynamic_bound_loss_log0.txt"
+    WORKER1_LOG="./logs/worker_dynamic_bound_loss_log1.txt"
+    WORKER2_LOG="./logs/worker_dynamic_bound_loss_log2.txt"
 else
     SERVER_SCRIPT="server.py"
     WORKER_SCRIPT="worker.py"
