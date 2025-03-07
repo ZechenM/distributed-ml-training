@@ -61,10 +61,10 @@ class DistributedTrainer(Trainer):
         self.server_host = kwargs.pop('server_host', 'localhost')
         self.server_port = kwargs.pop('server_port', 60000)
         self.worker_id = kwargs.pop('worker_id', 0)
+        self.device = kwargs.pop('device', torch.device("cpu"))  # Get device from kwargs
         self.network_latency_list = []
         self.start_time = 0
         self.end_time = 0
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # Initialize parent class with remaining arguments
         super().__init__(*args, **kwargs)
@@ -133,6 +133,8 @@ class DistributedTrainer(Trainer):
             inputs: The inputs for the current step
             num_items_in_batch: Number of items in the current batch
         """
+        # Ensure model is on the correct device
+        model = model.to(self.device)
         model.train()
         print(f"inputs type: {type(inputs)}, keys: {inputs.keys() if isinstance(inputs, dict) else 'not a dict'}")
         
@@ -143,6 +145,7 @@ class DistributedTrainer(Trainer):
             x = torch.randn(4, 3, 224, 224).to(self.device)
             labels = torch.randint(0, 100, (4,)).to(self.device)
         else:
+            # Ensure inputs are on the correct device
             x = inputs["pixel_values"].to(self.device)
             labels = inputs["labels"].to(self.device)
             
@@ -158,8 +161,8 @@ class DistributedTrainer(Trainer):
 
         loss.backward()
 
-        # Get gradients
-        gradients = {name: param.grad.cpu() for name, param in model.named_parameters()}
+        # Get gradients and ensure they're on CPU for communication
+        gradients = {name: param.grad.cpu() for name, param in model.named_parameters() if param.grad is not None}
 
         # Send gradients to server and receive averaged gradients
         update, avg_gradients = self.send_recv(gradients)
@@ -169,8 +172,10 @@ class DistributedTrainer(Trainer):
             return loss.detach()
 
         # Update model parameters with averaged gradients
-        for name, param in model.named_parameters():
-            param.grad = avg_gradients[name].to(self.device)
+        with torch.no_grad():
+            for name, param in model.named_parameters():
+                if name in avg_gradients:
+                    param.grad = avg_gradients[name].to(self.device)
 
         return loss.detach()
 
@@ -210,13 +215,17 @@ class Worker:
         self.server_host = host
         self.server_port = port
         
-        # Set up CUDA device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Set up device
         if torch.cuda.is_available():
+            self.device = torch.device("cuda")
             print(f"Using CUDA device: {torch.cuda.get_device_name(0)}")
             print(f"CUDA version: {torch.version.cuda}")
+        # elif torch.backends.mps.is_available():
+        #     self.device = torch.device("mps")
+        #     print("Using MPS device")
         else:
-            print("CUDA is not available. Using CPU.")
+            self.device = torch.device("cpu")
+            print("Using CPU device")
         
         # Load untrained VGG-13 model
         self.model = models.vgg13(weights=None)
@@ -296,7 +305,8 @@ class Worker:
             server_host=self.server_host,
             server_port=self.server_port,
             worker_id=self.worker_id,
-            compute_metrics=self.compute_metrics
+            compute_metrics=self.compute_metrics,
+            device=self.device  # Pass the device to DistributedTrainer
         )
 
         # Start training
@@ -305,9 +315,9 @@ class Worker:
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print("Invalid usage.")
-        print("USAGE: python worker_trainer.py <WORKER_ID>")
+        print("USAGE: python worker_trainer.py <WORKER_ID> [--port PORT]")
         sys.exit(1)
     
     # Set random seed for reproducibility
@@ -316,7 +326,17 @@ def main():
     np.random.seed(42)
     
     worker_id = int(sys.argv[1])
-    worker = Worker(worker_id)
+    
+    # Parse port argument if provided
+    port = 60000  # default port
+    if len(sys.argv) > 2 and sys.argv[2] == "--port":
+        if len(sys.argv) > 3:
+            port = int(sys.argv[3])
+        else:
+            print("Error: --port requires a port number")
+            sys.exit(1)
+    
+    worker = Worker(worker_id, port=port)
     worker.train_worker()
 
 

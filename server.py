@@ -16,10 +16,31 @@ class Server:
     def start_server(self) -> None:
         # Create a socket
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.bind((self.host, self.port))
+        
+        # Try to bind to port, if occupied try next port
+        max_attempts = 10  # Maximum number of ports to try
+        original_port = self.port
+        
+        for attempt in range(max_attempts):
+            try:
+                self.server_socket.bind((self.host, self.port))
+                break
+            except OSError as e:
+                if e.errno == 48:  # Address already in use
+                    print(f"Port {self.port} is already in use, trying port {self.port + 1}")
+                    self.port += 1
+                    if attempt == max_attempts - 1:
+                        raise Exception(f"Could not find an available port after trying {max_attempts} ports starting from {original_port}")
+                else:
+                    raise e
+        
         self.server_socket.listen(self.num_workers)
         self.is_listening = True
         print(f"Server listening on {self.host}:{self.port}...")
+        
+        # Write port number to temporary file
+        with open(".server_port", "w") as f:
+            f.write(str(self.port))
 
     def recv_all(self, conn, size):
         """helper function to receive all data"""
