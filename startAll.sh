@@ -141,5 +141,6 @@ while [ $WORKERS_DONE -lt 3 ]; do
     sleep 5
 done
 
+head -n 2 "$WORKER0_LOG"
 echo "All workers have finished training. Exiting."
 exit 0

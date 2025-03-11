@@ -144,8 +144,10 @@ class Worker:
 
     def train_worker(self):
         # Create a model
-        # model = SimpleModel()
-        model = myResNet()
+        model = SimpleModel()
+        # model = myResNet()
+        print(f"Model Type: {model}")
+        
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         criterion = nn.CrossEntropyLoss()
 
