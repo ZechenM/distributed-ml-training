@@ -6,7 +6,9 @@ The training is orchestrated by shell script:
 
 1. Config the experiment, go to `config.py`.
 
-2.  `time ./startAll.sh`
+2.  `time ./startAll.sh`. This will display total network latency and test accuracy
+
+3. To view full test accuracy history, `cat ./logs/{last_experiment}/worker* | grep "test accuracy"`
 
 
 If first time, data is not prepared, it will run the data generation script. After the data is generated, re-run the script.

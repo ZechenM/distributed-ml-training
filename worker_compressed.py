@@ -42,6 +42,10 @@ class Worker:
         with open(f"dataloader_{worker_id}.pkl", "rb") as f:
             self.dataloader = pickle.load(f)
 
+        with open("dataloader_test.pkl", "rb") as f:
+            self.test_dataloader = pickle.load(f) 
+        
+
     def send_data(self, sock, data):
         """Helper function to send data with a fixed-length header."""
 
@@ -122,11 +126,28 @@ class Worker:
                 return (False, None)
 
         return (True, avg_gradients)
+    
+    def _accuracy(self, model, dataloader):
+        correct, total = 0, 0
+        for batch_X, batch_y in dataloader:
+            outputs = model(batch_X)
+            predicted = torch.argmax(outputs, dim=1)
+            # print(f"debug1:", outputs, outputs.shape, batch_y, batch_y.shape, sep='\n')
+            # correct = (outputs == batch_y).sum().item()
+            correct += (predicted == batch_y).sum().item()
+            total += batch_y.size(0)
+
+        self.test_accuracy = round(correct / total, 4)
+        print(f"Worker {worker_id} test accuracy: {self.test_accuracy}")
+
+
 
     def train_worker(self):
         # Create a model
-        # model = SimpleModel()
-        model = myResNet()
+        model = SimpleModel()
+        # model = myResNet()
+        print(f"Model Type: {model}")
+        
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         criterion = nn.CrossEntropyLoss()
 
@@ -160,8 +181,10 @@ class Worker:
                 optimizer.step()
 
             print(f"Worker {worker_id} completed epoch {epoch}")
+            # test accuracy
+            self._accuracy(model, self.test_dataloader)
 
-        print(f"Worker {worker_id} finished training.")
+        print(f"Worker {worker_id} finished training. Final test accuracy: {self.test_accuracy}")
 
 
 if __name__ == "__main__":

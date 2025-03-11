@@ -133,7 +133,7 @@ while [ $WORKERS_DONE -lt 3 ]; do
     for WORKER_LOG in "$WORKER0_LOG" "$WORKER1_LOG" "$WORKER2_LOG"; do
         if [[ ! " ${WORKERS_FINISHED[@]} " =~ " $WORKER_LOG " ]] && tail -n 3 "$WORKER_LOG" | grep -q "Worker .* finished training."; then
             # echo "Training completion detected in $WORKER_LOG:"
-            tail -n 1 "$WORKER_LOG"
+            tail -n 2 "$WORKER_LOG"
             WORKERS_FINISHED+=("$WORKER_LOG")
             WORKERS_DONE=$((WORKERS_DONE + 1))
         fi
@@ -141,5 +141,6 @@ while [ $WORKERS_DONE -lt 3 ]; do
     sleep 5
 done
 
+head -n 2 "$WORKER0_LOG"
 echo "All workers have finished training. Exiting."
 exit 0

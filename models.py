@@ -11,7 +11,9 @@ class SimpleModel(nn.Module):
     def forward(self, x):
         x = x.view(-1, 28 * 28)  # Flatten the input
         return self.fc(x)
-
+    
+    def __str__(self):
+        return "SimpleModel"
 
 class myResNet(nn.Module):
     def __init__(self):
@@ -83,3 +85,6 @@ class myResNet(nn.Module):
         x = self.active7(self.layer7(x))
         x = self.active8(self.layer8(x))
         return x  ## COMPLETED ##
+
+    def __str__(self) -> str:
+        return "myResNet"
