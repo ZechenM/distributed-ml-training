@@ -2,22 +2,15 @@
 SETLOCAL ENABLEDELAYEDEXPANSION
 
 :: Determine script mode
-IF "%1"=="-c" (
+IF "%1"=="-d" (
     SET SERVER_SCRIPT=server_compressed.py
-    SET WORKER_SCRIPT=worker_compressed.py
-    SET SERVER_LOG=logs\server_compressed_log.txt
-    SET WORKER0_LOG=logs\worker_compressed_log0.txt
-    SET WORKER1_LOG=logs\worker_compressed_log1.txt
-    SET WORKER2_LOG=logs\worker_compressed_log2.txt
-) ELSE IF "%1"=="-d" (
-    SET SERVER_SCRIPT=server.py
     SET WORKER_SCRIPT=dynamic_bound_loss\worker_trainer.py
     SET SERVER_LOG=logs\server_dynamic_bound_loss_log.txt
     SET WORKER0_LOG=logs\worker_dynamic_bound_loss_log0.txt
     SET WORKER1_LOG=logs\worker_dynamic_bound_loss_log1.txt
     SET WORKER2_LOG=logs\worker_dynamic_bound_loss_log2.txt
 ) ELSE (
-    SET SERVER_SCRIPT=server.py
+    SET SERVER_SCRIPT=server_compressed.py
     SET WORKER_SCRIPT=worker.py
     SET SERVER_LOG=logs\server_log.txt
     SET WORKER0_LOG=logs\worker_log0.txt
