@@ -15,7 +15,57 @@ import os
 from sklearn.metrics import accuracy_score
 from torch.serialization import safe_globals
 
-class CIFAR100Dataset(Dataset):
+train_args = TrainingArguments(
+            num_train_epochs=3,
+            per_device_train_batch_size=4,
+            per_device_eval_batch_size=4,
+            weight_decay=0.01,
+            learning_rate=0.001,
+            logging_steps=10,
+            save_strategy="epoch",
+            eval_strategy="epoch",
+            load_best_model_at_end=True,
+            dataloader_pin_memory=True,  # Enable pin_memory for faster data transfer to GPU
+            report_to="none",
+            logging_first_step=True,  # Log metrics for the first step
+        )
+
+class CIFAR10Dataset(Dataset):
+    def __init__(self, subset):
+        self.subset = subset
+        self.images = []
+        self.labels = []
+        
+        # Extract images and labels from the subset
+        for img, label in subset:
+            self.images.append(img)
+            self.labels.append(label)
+            
+    def __len__(self):
+        return len(self.subset)
+    
+    def __getitem__(self, idx):
+        img = self.images[idx]
+        label = self.labels[idx]
+        
+        # Ensure proper tensor formats - don't rewrap tensors
+        if not isinstance(img, torch.Tensor):
+            img = torch.tensor(img, dtype=torch.float)
+        else:
+            # Ensure it's a float tensor
+            img = img.float()
+            
+        if not isinstance(label, torch.Tensor):
+            label = torch.tensor(label, dtype=torch.long)
+        else:
+            # Ensure it's a long tensor for labels
+            label = label.long()
+            
+        return {
+            'pixel_values': img,
+            'labels': label
+        }
+
     def __init__(self, subset):
         self.subset = subset
         self.images = []
@@ -47,7 +97,7 @@ class CIFAR100Dataset(Dataset):
             # Ensure it's a long tensor for labels
             label = label.long()
             
-        print(f"Returning data for index {idx}: {type(img)}, shape: {img.shape}")
+        # print(f"Returning data for index {idx}: {type(img)}, shape: {img.shape}")
         
         return {
             'pixel_values': img,
@@ -78,6 +128,12 @@ class DistributedTrainer(Trainer):
         self.calc_network_latency(True)
 
     def recv_data(self, sock):
+        # First receive the ACK from the server
+        ack = sock.recv(1)
+        if ack != b'A':
+            print(f"Warning: Expected ACK but received: {ack}")
+
+        # Now receive the actual data with size header
         size_data = sock.recv(4)
         if not size_data:
             return None
@@ -109,7 +165,7 @@ class DistributedTrainer(Trainer):
         """
         Override the default dataloader to use our custom collate function
         """
-        print("Using custom get_train_dataloader")
+        # print("Using custom get_train_dataloader")
         if self.train_dataset is None:
             raise ValueError("Trainer: training requires a train_dataset.")
         
@@ -136,7 +192,7 @@ class DistributedTrainer(Trainer):
         # Ensure model is on the correct device
         model = model.to(self.device)
         model.train()
-        print(f"inputs type: {type(inputs)}, keys: {inputs.keys() if isinstance(inputs, dict) else 'not a dict'}")
+        # print(f"inputs type: {type(inputs)}, keys: {inputs.keys() if isinstance(inputs, dict) else 'not a dict'}")
         
         # Handle empty inputs - this should not happen if get_train_dataloader is working properly
         if not inputs or not isinstance(inputs, dict) or "pixel_values" not in inputs:
@@ -191,14 +247,62 @@ class DistributedTrainer(Trainer):
     def print_total_network_latency(self):
         print(f'Total network latency for worker {self.worker_id}: {sum(self.network_latency_list)}')
 
+    def get_eval_dataloader(self, eval_dataset=None):
+        """
+        Override the default eval dataloader to use our custom collate function
+        """
+        if eval_dataset is None and self.eval_dataset is None:
+            raise ValueError("Trainer: evaluation requires an eval_dataset.")
+        
+        eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
+        
+        return DataLoader(
+            eval_dataset,
+            batch_size=self.args.per_device_eval_batch_size,
+            collate_fn=custom_collate_fn,
+            drop_last=self.args.dataloader_drop_last,
+            num_workers=self.args.dataloader_num_workers,
+            pin_memory=self.args.dataloader_pin_memory,
+        )
+
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        """
+        Override the prediction step to ensure inputs are properly handled
+        Args:
+            model: The model to evaluate
+            inputs: The inputs for prediction
+            prediction_loss_only: Whether to return only the loss
+            ignore_keys: Keys to ignore in the model output
+        """
+        model = model.to(self.device)
+        model.eval()
+        
+        with torch.no_grad():
+            # Ensure inputs are on the correct device
+            x = inputs["pixel_values"].to(self.device)
+            labels = inputs["labels"].to(self.device)
+            
+            # Forward pass
+            outputs = model(x)
+            
+            # Compute loss
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(outputs, labels)
+            
+            # For evaluation, we need to return the loss, outputs, and labels
+            if prediction_loss_only:
+                return (loss, None, None)
+            else:
+                return (loss, outputs, labels)
+
 
 def custom_collate_fn(batch):
     """
     Custom collate function to properly batch data for our model
     """
     # Print batch structure for debugging
-    if len(batch) > 0:
-        print(f"collate_fn: batch size={len(batch)}, first item keys={batch[0].keys()}")
+    # if len(batch) > 0:
+        # print(f"collate_fn: batch size={len(batch)}, first item keys={batch[0].keys()}")
     
     # Collate function to preserve the structure of the batch
     pixel_values = torch.stack([item['pixel_values'] for item in batch])
@@ -227,43 +331,42 @@ class Worker:
             self.device = torch.device("cpu")
             print("Using CPU device")
         
-        # Load untrained VGG-13 model
-        self.model = models.vgg13(weights=None)
+        # Load untrained EfficientNetB0 model
+        self.model = models.efficientnet_b0(weights=None)
+        # Modify the model's classifier to output 10 classes (CIFAR10)
+        in_features = self.model.classifier[1].in_features
+        self.model.classifier[1] = nn.Linear(in_features, 10)
         self.model = self.model.to(self.device)
         print(f"Model moved to {self.device}")
 
         # Get the absolute path to the distributed-ml-training directory
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_dir)
-        SPLIT_DIR = os.path.join(project_root, "data", "cifar100_splits")
+        SPLIT_DIR = os.path.join(project_root, "data", "cifar10_splits")
         
         # Load training dataset split
         train_split_path = os.path.join(SPLIT_DIR, f"train_{self.worker_id}.pth")
         if not os.path.exists(train_split_path):
-            raise FileNotFoundError(f"Training dataset split not found at {train_split_path}. Please run prepare_data.py first.")
+            raise FileNotFoundError(f"Training dataset split not found at {train_split_path}. Please run prepare_data.py first to generate CIFAR10 splits.")
             
         # Load test dataset split
         test_split_path = os.path.join(SPLIT_DIR, f"test.pth")
         if not os.path.exists(test_split_path):
-            raise FileNotFoundError(f"Test dataset split not found at {test_split_path}. Please run prepare_data.py first.")
+            raise FileNotFoundError(f"Test dataset split not found at {test_split_path}. Please run prepare_data.py first to generate CIFAR10 splits.")
             
         # Load both dataset splits
         with safe_globals([torch.utils.data.dataset.Subset]):
             train_subset = torch.load(train_split_path, weights_only=False)
             test_subset = torch.load(test_split_path, weights_only=False)
-            print(f"Loaded training split containing {len(train_subset)} samples")
-            print(f"Loaded test split containing {len(test_subset)} samples")
+            print(f"Loaded CIFAR10 training split containing {len(train_subset)} samples")
+            print(f"Loaded CIFAR10 test split containing {len(test_subset)} samples")
             
         # Convert the subsets into our custom dataset format
-        self.train_dataset = CIFAR100Dataset(train_subset)
-        self.eval_dataset = CIFAR100Dataset(test_subset)
-        print(f"Created datasets for worker {self.worker_id}")
+        self.train_dataset = CIFAR10Dataset(train_subset)
+        self.eval_dataset = CIFAR10Dataset(test_subset)
+        print(f"Created CIFAR10 datasets for worker {self.worker_id}")
         print(f"Training samples: {len(self.train_dataset)}")
         print(f"Test samples: {len(self.eval_dataset)}")
-
-        # # Create DataLoader with custom collate function
-        # self.train_dataloader = DataLoader(self.train_dataset, batch_size=4, collate_fn=custom_collate_fn)
-        # self.eval_dataloader = DataLoader(self.eval_dataset, batch_size=4, collate_fn=custom_collate_fn)
 
         # Verify DataLoader output
         for batch in self.train_dataset:
@@ -283,34 +386,31 @@ class Worker:
 
     def train_worker(self):
         # Initialize the distributed trainer
-        self.training_args = TrainingArguments(
-            output_dir=f"./results_worker_{self.worker_id}",
-            num_train_epochs=1,
-            per_device_train_batch_size=4,
-            per_device_eval_batch_size=4,
-            weight_decay=0.01,
-            logging_dir=f"./logs_worker_{self.worker_id}",
-            logging_steps=10,
-            save_strategy="epoch",
-            eval_strategy="epoch",
-            load_best_model_at_end=True,
-            dataloader_pin_memory=True,  # Enable pin_memory for faster data transfer to GPU
-        )
+        self.training_args = train_args
+        self.training_args.output_dir = f"./results_worker_{self.worker_id}"
+        self.training_args.logging_dir = f"./logs_worker_{self.worker_id}"
 
         trainer = DistributedTrainer(
             model=self.model,
             args=self.training_args,
             train_dataset=self.train_dataset,
-            eval_dataset=self.eval_dataset,  # Add evaluation dataset
+            eval_dataset=self.eval_dataset,
+            compute_metrics=self.compute_metrics,  # Make sure this is passed
             server_host=self.server_host,
             server_port=self.server_port,
             worker_id=self.worker_id,
-            compute_metrics=self.compute_metrics,
-            device=self.device  # Pass the device to DistributedTrainer
+            device=self.device
         )
 
         # Start training
-        trainer.train()
+        print(f"Worker {self.worker_id} starting training with evaluation...")
+        train_result = trainer.train()
+        print(f"Worker {self.worker_id} training completed. Results: {train_result}")
+        
+        # Explicitly evaluate after training
+        eval_results = trainer.evaluate()
+        print(f"Worker {self.worker_id} final evaluation results: {eval_results}")
+        
         trainer.print_total_network_latency()
 
 
