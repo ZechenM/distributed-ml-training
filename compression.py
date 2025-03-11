@@ -1,6 +1,11 @@
 import torch
 from typing import Any, Dict, List, Tuple, Set
 
+
+def no_compress(data):
+    # a placeholder function for no compression
+    return data
+
 def rle_compress(data: Dict[str, torch.Tensor]) -> Dict[str, Tuple[List[Tuple[float, int]], Any]]:
     """Compress gradients using Run-Length Encoding (RLE)."""
     # {fc.weight: [(-0.1, 3), (0.2, 2), ...], fc.bias: [(0.0, 5), ...]}
@@ -37,7 +42,7 @@ def rle_decompress(
     return decompressed
 
 
-def quantize_lossless_compress(gradients: dict, num_bits=8):
+def quantize_lossy_compress(gradients: dict, num_bits=8):
     """
     Quantizes the gradient tensors using uniform quantization (loseless approach).
 
@@ -67,7 +72,7 @@ def quantize_lossless_compress(gradients: dict, num_bits=8):
     return quantized_data
 
 
-def quantize_lossless_decompress(q_data: dict):
+def quantize_lossy_decompress(q_data: dict):
     """
     Decompresses the quantized gradient data back to PyTorch tensors.
 
@@ -88,3 +93,76 @@ def quantize_lossless_decompress(q_data: dict):
         decompressed_data[name] = decompressed_values
 
     return decompressed_data
+
+# this approach won't work because all the gradients are in the range of (-1,1)
+# which all will be quantized to 0
+def integerize_lossy_compress(gradients: dict):
+    """
+    Converts all gradient values to integers by zeroing out the floating-point precision.
+
+    Parameters:
+    gradients (dict): Dictionary of named PyTorch gradient tensors.
+
+    Returns:
+    dict: Dictionary containing integerized gradient tensors.
+    """
+    integerized_data = {}
+
+    for name, grad in gradients.items():
+        integerized_values = torch.round(grad).to(torch.int32)
+        integerized_data[name] = integerized_values
+
+    return integerized_data
+
+def baseline_quantize(gradients: dict, type: torch.dtype=torch.float16):
+    """
+    Quantizes the gradient tensors using torch.to() method.
+
+    Parameters:
+    gradients (dict): Dictionary of named PyTorch gradient tensors.
+
+    Returns:
+    dict: Dictionary containing quantized values and metadata for reconstruction.
+    """
+    quantized_data = {}
+
+    for name, grad in gradients.items():
+        quantized_values = grad.to(type)
+        quantized_data[name] = quantized_values
+
+    return quantized_data
+
+def baseline_dequantize(q_data: dict):
+    """
+    Dequantizes the quantized gradient tensors using torch.to() method.
+
+    Parameters:
+    q_data (dict): Dictionary of quantized gradient tensors.
+
+    Returns:
+    dict: Dictionary containing dequantized PyTorch tensors.
+    """
+    dequantized_data = {}
+
+    for name, grad in q_data.items():
+        dequantized_values = grad.to(torch.float32)
+        dequantized_data[name] = dequantized_values
+
+    return dequantized_data
+
+
+def print_gradients(
+    gradients: dict,
+    host: str,
+    gradient_type: str = "Original",
+    worker_id: int = 0,
+):
+    """
+    Helper function: Prints the gradients for debugging purposes.
+    """
+    for name, grad in gradients.items():
+        if grad is not None:
+            print(f"{gradient_type} Gradient for {name} on {host} {worker_id}:")
+            for idx, value in enumerate(grad.flatten()):
+                if idx % 1000 == 0:
+                    print(f"    [{idx}]: {value}")

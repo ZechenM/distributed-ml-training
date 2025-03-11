@@ -5,3 +5,4 @@ accelerate
 numpy
 scikit-learn
 datasets
+torchvision

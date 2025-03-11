@@ -9,11 +9,12 @@ import struct
 from time import sleep
 import struct  # For packing/unpacking data size
 from typing import Any, Dict, List, Tuple, Set
-from compression import rle_compress, rle_decompress, quantize_lossless_compress, quantize_lossless_decompress
+from config import *
 import time
 from models import myResNet, SimpleModel
+from compression import *
 
-compress, decompress = rle_compress, rle_decompress
+print(f"Compression Method: {compression_method}")
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
@@ -41,6 +42,10 @@ class Worker:
         with open(f"dataloader_{worker_id}.pkl", "rb") as f:
             self.dataloader = pickle.load(f)
 
+        with open("dataloader_test.pkl", "rb") as f:
+            self.test_dataloader = pickle.load(f) 
+        
+
     def send_data(self, sock, data):
         """Helper function to send data with a fixed-length header."""
 
@@ -48,6 +53,7 @@ class Worker:
         compressed_data = compress(data)
         # Serialize the data
         data_bytes = pickle.dumps(compressed_data)
+        print(f"Send data size: {len(data_bytes)}")
 
         # ALL NETWORK LATENCY ARE CALCULATED ON THE WORKER SIDE
         # ---------------------------------------------------------------------
@@ -60,6 +66,11 @@ class Worker:
         # Send the actual data
         sock.sendall(data_bytes)
 
+        # waiting for server response (ACK)
+        ack = sock.recv(1)  # Block until acknowledgment is received
+        if ack != b'A':
+            raise RuntimeError("Acknowledgment not received")
+        
         # clock ends
         self.end_time = time.perf_counter()
         self.calc_network_latency(True)
@@ -79,7 +90,7 @@ class Worker:
         # ---------------------------------------------------------------------
         # clock starts
         self.start_time = time.perf_counter()
-        
+
         # Receive the actual data
         data = b""
         while len(data) < size:
@@ -92,7 +103,6 @@ class Worker:
         self.end_time = time.perf_counter()
         self.calc_network_latency(False)
         # ---------------------------------------------------------------------
-        
 
         # Deserialize the compressed data
         compressed_data = pickle.loads(data)
@@ -116,11 +126,28 @@ class Worker:
                 return (False, None)
 
         return (True, avg_gradients)
+    
+    def _accuracy(self, model, dataloader):
+        correct, total = 0, 0
+        for batch_X, batch_y in dataloader:
+            outputs = model(batch_X)
+            predicted = torch.argmax(outputs, dim=1)
+            # print(f"debug1:", outputs, outputs.shape, batch_y, batch_y.shape, sep='\n')
+            # correct = (outputs == batch_y).sum().item()
+            correct += (predicted == batch_y).sum().item()
+            total += batch_y.size(0)
+
+        self.test_accuracy = round(correct / total, 4)
+        print(f"Worker {worker_id} test accuracy: {self.test_accuracy}")
+
+
 
     def train_worker(self):
         # Create a model
-        # model = SimpleModel()
-        model = myResNet()
+        model = SimpleModel()
+        # model = myResNet()
+        print(f"Model Type: {model}")
+        
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         criterion = nn.CrossEntropyLoss()
 
@@ -138,9 +165,6 @@ class Worker:
                 # Get gradients
                 gradients = {name: param.grad for name, param in model.named_parameters()}
 
-                # Print the size of gradients
-                for name, grad in gradients.items():
-                    print(f"Gradient size for {name}: {grad.size()}")
 
                 # Send gradients to the server
                 update, avg_gradients = self.send_recv(gradients)
@@ -149,7 +173,7 @@ class Worker:
                     print(f"Worker {worker_id} failed to receive averaged gradients.")
                     continue
 
-                print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
+                if DEBUG: print(f"Worker {worker_id} received averaged gradients {avg_gradients}.")
 
                 # Update model parameters with averaged gradients
                 for name, param in model.named_parameters():
@@ -157,8 +181,10 @@ class Worker:
                 optimizer.step()
 
             print(f"Worker {worker_id} completed epoch {epoch}")
+            # test accuracy
+            self._accuracy(model, self.test_dataloader)
 
-        print(f"Worker {worker_id} finished training.")
+        print(f"Worker {worker_id} finished training. Final test accuracy: {self.test_accuracy}")
 
 
 if __name__ == "__main__":

@@ -82,6 +82,18 @@ def prepare_cifar100_data(total_samples=375):
     print(f"Samples per worker: {split_size}")
 
 
+def prepare_mnist_test_data():
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
+    )
+
+    mnist_dataset = datasets.MNIST(
+        root="./data", train=False, download=True, transform=transform
+    )
+
+    return DataLoader(mnist_dataset, batch_size=64, shuffle=True)
+
+
 if __name__ == "__main__":
     # Prepare MNIST data
     dataloaders = prepare_mnist_data()
@@ -92,3 +104,9 @@ if __name__ == "__main__":
 
     # Prepare CIFAR-100 data (using 1125 samples for 375 per worker)
     prepare_cifar100_data(total_samples=375)
+
+    test_dataloader = prepare_mnist_test_data()
+    filename = 'dataloader_test.pkl'
+    with open(filename, 'wb') as f:
+        pickle.dump(test_dataloader, f)
+    print(f"Test dataset Dataloader stored as {filename}")

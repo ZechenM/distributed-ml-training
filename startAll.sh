@@ -2,8 +2,8 @@
 
 # This script starts the server and workers.
 # Usage:
-#   ./startAll.sh      # Runs normal server and worker
-#   ./startAll.sh -c  # Runs compressed versions
+#   ./startAll.sh      # Runs normal server and worker and compressed versions (specify in config.py and verify in logs)
+#   ./startAll.sh -g   # Runs Galore server and worker
 
 alias python=python3
 
@@ -17,7 +17,7 @@ fi
 # Install required Python packages
 if [ -f "requirements.txt" ]; then
     echo "Installing required packages..."
-    pip install -r requirements.txt
+    pip install --quiet -r requirements.txt
 else
     echo "requirements.txt not found. Skipping package installation."
 fi
@@ -26,14 +26,7 @@ fi
 rm -f .server_port
 
 # Determine whether to use compressed or Galore versions
-if [[ "$1" == "-c" ]]; then
-    SERVER_SCRIPT="server_compressed.py"
-    WORKER_SCRIPT="worker_compressed.py"
-    SERVER_LOG="./logs/server_compressed_log.txt"
-    WORKER0_LOG="./logs/worker_compressed_log0.txt"
-    WORKER1_LOG="./logs/worker_compressed_log1.txt"
-    WORKER2_LOG="./logs/worker_compressed_log2.txt"
-elif [[ "$1" == "-d" ]]; then
+if [[ "$1" == "-d" ]]; then
     SERVER_SCRIPT="server.py"
     WORKER_SCRIPT="dynamic_bound_loss/worker_trainer.py"
     SERVER_LOG="./logs/server_dynamic_bound_loss_log.txt"
@@ -41,13 +34,20 @@ elif [[ "$1" == "-d" ]]; then
     WORKER1_LOG="./logs/worker_dynamic_bound_loss_log1.txt"
     WORKER2_LOG="./logs/worker_dynamic_bound_loss_log2.txt"
 else
-    SERVER_SCRIPT="server.py"
-    WORKER_SCRIPT="worker.py"
-    SERVER_LOG="./logs/server_log.txt"
-    WORKER0_LOG="./logs/worker_log0.txt"
-    WORKER1_LOG="./logs/worker_log1.txt"
-    WORKER2_LOG="./logs/worker_log2.txt"
-fi
+    SERVER_SCRIPT="server_compressed.py"
+    WORKER_SCRIPT="worker_compressed.py"
+    SERVER_LOG="${LOG_DIR}/server_log.txt"
+    WORKER0_LOG="${LOG_DIR}/worker_log0.txt"
+    WORKER1_LOG="${LOG_DIR}/worker_log1.txt"
+    WORKER2_LOG="${LOG_DIR}/worker_log2.txt"
+# In order to keep previous logs, log files will store under logs/{current_time}/
+CURRENT_TIME=$(date +"%Y%m%d_%H%M%S")
+
+LOG_DIR="./logs/${CURRENT_TIME}"
+
+mkdir -p "${LOG_DIR}"
+
+echo "LOGS: ${LOG_DIR}"
 
 # Check if any .pkl files exist
 if ls *.pkl > /dev/null 2>&1; then
@@ -133,7 +133,8 @@ WORKERS_FINISHED=()
 while [ $WORKERS_DONE -lt 3 ]; do
     for WORKER_LOG in "$WORKER0_LOG" "$WORKER1_LOG" "$WORKER2_LOG"; do
         if [[ ! " ${WORKERS_FINISHED[@]} " =~ " $WORKER_LOG " ]] && tail -n 3 "$WORKER_LOG" | grep -q "Worker .* finished training."; then
-            tail -n 1 "$WORKER_LOG"
+            # echo "Training completion detected in $WORKER_LOG:"
+            tail -n 2 "$WORKER_LOG"
             WORKERS_FINISHED+=("$WORKER_LOG")
             WORKERS_DONE=$((WORKERS_DONE + 1))
         fi
@@ -141,5 +142,6 @@ while [ $WORKERS_DONE -lt 3 ]; do
     sleep 5
 done
 
+head -n 2 "$WORKER0_LOG"
 echo "All workers have finished training. Exiting."
 exit 0

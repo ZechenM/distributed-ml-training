@@ -1,6 +1,10 @@
 # virtual environment
 gradient-compress/
 
+# no longer useful files
+worker.py
+server.py
+
 # dataset
 data
 *.pkl
