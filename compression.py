@@ -1,17 +1,24 @@
 import torch
 from typing import Any, Dict, List, Tuple, Set
+import numpy as np
+
+DEBUG_MODE = 0
 
 
 def no_compress(data):
     # a placeholder function for no compression
     return data
 
-def rle_compress(data: Dict[str, torch.Tensor]) -> Dict[str, Tuple[List[Tuple[float, int]], Any]]:
+
+def rle_compress(
+    data: Dict[str, torch.Tensor],
+) -> Dict[str, Tuple[List[Tuple[float, int]], Any]]:
     """Compress gradients using Run-Length Encoding (RLE)."""
     # {fc.weight: [(-0.1, 3), (0.2, 2), ...], fc.bias: [(0.0, 5), ...]}
     compressed = {}
     for name, tensor in data.items():
         tensor_flat = tensor.flatten().tolist()  # Flatten and convert to list
+        tensor_flat = [np.int16(value * 1000) for value in tensor_flat]  # Round to 4 decimal
         compressed_runs = []
         current_value = tensor_flat[0]
         count = 1
@@ -19,24 +26,44 @@ def rle_compress(data: Dict[str, torch.Tensor]) -> Dict[str, Tuple[List[Tuple[fl
             if value == current_value:
                 count += 1
             else:
-                compressed_runs.append((current_value, count))
+                if count > 1:
+                    compressed_runs.append((current_value, count))
+                else:
+                    compressed_runs.append(current_value)
+
                 current_value = value
                 count = 1
-        compressed_runs.append((current_value, count))  # Add the last run
+
+        if count > 1:
+            compressed_runs.append((current_value, count))  # Add the last run
+        else:
+            compressed_runs.append(current_value)
         # Store the compressed runs and the original shape
         compressed[name] = (compressed_runs, tensor.shape)
+
+        if DEBUG_MODE and "weight" in name:
+            avg_count = sum(count for _, count in compressed_runs) / float(len(compressed_runs))
+
+            print(f"Tensor size: {len(tensor_flat)}")
+            print(f"Original RLE count: {len(compressed_runs)}")
+            print(f"Averaged RLE count: {avg_count}")
+
     return compressed
 
 
 def rle_decompress(
-    compressed: Dict[str, Tuple[List[Tuple[float, int]], Any]]
+    compressed: Dict[str, Tuple[List[Tuple[float, int]], Any]],
 ) -> Dict[str, torch.Tensor]:
     """Decompress gradients using Run-Length Encoding (RLE)."""
     decompressed = {}
     for name, (runs, original_shape) in compressed.items():
         tensor_flat = []
-        for value, count in runs:
-            tensor_flat.extend([value] * count)
+        for value in runs:
+            if isinstance(value, tuple):
+                value, count = value
+            else:
+                count = 1
+            tensor_flat.extend([float(value) / 1000] * count)
         # Reshape to the original shape
         decompressed[name] = torch.tensor(tensor_flat).reshape(original_shape)
     return decompressed
@@ -94,6 +121,7 @@ def quantize_lossy_decompress(q_data: dict):
 
     return decompressed_data
 
+
 # this approach won't work because all the gradients are in the range of (-1,1)
 # which all will be quantized to 0
 def integerize_lossy_compress(gradients: dict):
@@ -114,7 +142,8 @@ def integerize_lossy_compress(gradients: dict):
 
     return integerized_data
 
-def baseline_quantize(gradients: dict, type: torch.dtype=torch.float16):
+
+def baseline_quantize(gradients: dict, type: torch.dtype = torch.float16):
     """
     Quantizes the gradient tensors using torch.to() method.
 
@@ -131,6 +160,7 @@ def baseline_quantize(gradients: dict, type: torch.dtype=torch.float16):
         quantized_data[name] = quantized_values
 
     return quantized_data
+
 
 def baseline_dequantize(q_data: dict):
     """

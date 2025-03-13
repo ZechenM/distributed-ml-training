@@ -9,6 +9,8 @@ from compression import *
 
 print(f"Compression Method: {compression_method}")
 
+DEBUG_MODE = 0
+
 class Server:
     def __init__(self, host="localhost", port=60000, num_workers=3):
         self.host = host
@@ -79,17 +81,36 @@ class Server:
 
             compressed_grad = pickle.loads(data)
             grad = decompress(compressed_grad)
+            
+            if DEBUG_MODE:
+                for param in grad:
+                    print(f"the size of {param}: {len(grad[param])}")
+                    print(f"{param} after decompression:")
+                    for weight in grad[param]:
+                        print(weight)
+            
+            
             gradients.append(grad)
             print(f"Received gradients from worker {self.conn_addr_map[conn]}")
 
         # Received gradients from all workers
         print("All gradients received.")
+        
+
+                        
 
         avg_gradients = {}
         for key in gradients[0].keys():
-            avg_gradients[key] = torch.stack([grad[key].float() for grad in gradients]).mean(
+            avg_gradients[key] = torch.stack([grad[key] for grad in gradients]).mean(
                 dim=0
             )
+
+        if DEBUG_MODE:
+            for param in avg_gradients:
+                print(f"the size of {param}: {len(avg_gradients[param])}")
+                print(f"{param} after averaging:")
+                for weight in avg_gradients[param]:
+                    print(weight)
 
         # Compress the averaged gradients
         compressed_avg_gradients = compress(avg_gradients)

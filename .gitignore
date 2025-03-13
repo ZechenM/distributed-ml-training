@@ -189,3 +189,5 @@ server_deepseek.py
 worker_deepseek.py
 
 logs/
+shabi_pickle.py
+shabi_v2.py
