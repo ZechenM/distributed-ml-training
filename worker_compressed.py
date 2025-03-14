@@ -6,18 +6,19 @@ from torch.utils.data import DataLoader
 import socket
 import pickle
 import struct
-from time import sleep
 import struct  # For packing/unpacking data size
 from typing import Any, Dict, List, Tuple, Set
 from config import *
 import time
 from models import myResNet, SimpleModel
 from compression import *
+import asyncio
 
 print(f"Compression Method: {compression_method}")
 
 
 DEBUG_COMPRESSION = 0
+
 
 class Worker:
     def __init__(self, worker_id, host="localhost", port=60000):
@@ -179,10 +180,12 @@ class Worker:
                 }
 
                 # print gradients
-                if True:
+                if False:
                     for param in gradients:
                         print(f"the size of {param}: {len(gradients[param])}")
-                        print(f"the size of values wrt {param}: {type(gradients[param])}")
+                        print(
+                            f"the size of values wrt {param}: {type(gradients[param])}"
+                        )
                         print(f"{param} before compression:")
                         for weight in gradients[param]:
                             print(type(weight))

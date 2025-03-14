@@ -6,99 +6,54 @@ import struct
 from typing import Any, Dict, List, Tuple, Set
 from config import *
 from compression import *
+import asyncio
 
 print(f"Compression Method: {compression_method}")
 
 DEBUG_MODE = 0
 
-class Server:
+
+class AsyncServer:
     def __init__(self, host="localhost", port=60000, num_workers=3):
         self.host = host
         self.port = port
         self.num_workers = num_workers
-        self.start_server()
-        self.run_server()
-        # Thread(target=self.handle_user_input, daemon=True).start()
+        self.connections = []
+        self.conn_addr_map = {}
 
-    def start_server(self) -> None:
-        # Create a socket
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.bind((self.host, self.port))
-        self.server_socket.listen(self.num_workers)
-        self.is_listening = True
-        print(f"Server listening on {self.host}:{self.port}...")
-
-    def recv_all(self, conn, size):
-        """helper function to receive all data"""
+    async def recv_all(self, reader, size):
+        """Helper function to receive all data asynchronously"""
         data = b""
         while len(data) < size:
-            packet = conn.recv(size - len(data))
-            if not packet:
+            chunk = await reader.read(size - len(data))
+            if not chunk:
                 return None
-            data += packet
-
+            data += chunk
         return data
 
-    def close_worker(self):
-        """Close all worker connections"""
-        for conn in self.connections:
-            conn.close()
-        self.connections = []
-        self.conn_addr_map = {}
-        print("Closed all worker connections.")
+    async def worker_connection_handler(self, reader, writer) -> None:
+        """Handle a single worker connection"""
+        addr = writer.get_extra_info("peername")
+        print(f"Worker connected from {addr}")
+        self.conn_addr_map[writer] = addr
+        self.connections.append((reader, writer))
 
-    def worker_connection_handler(self) -> None:
-        """Wait for all workers to connect"""
-        self.connections = []
-        self.conn_addr_map = {}
-        for _ in range(self.num_workers):
-            conn, addr = self.server_socket.accept()
-            self.connections.append(conn)
-            self.conn_addr_map[conn] = addr
-            print(f"Connected to worker at {addr}")
+        if len(self.connections) == self.num_workers:
+            print("All workers connected. Starting gradient exchange...")
+            await self.recv_send()
 
-        print("All workers connected.")
+    async def recv_send(self):
+        """Receive gradients from all workers concurrently and send back averaged gradients"""
+        tasks = [self.recv_worker_grad(reader) for reader, _ in self.connections]
+        gradients = await asyncio.gather(*tasks)
 
-    def recv_send(self):
-        """Receive gradients from all workers and send back averaged gradients"""
-        gradients = []
-        for conn in self.connections:
-            # Receive the size of the incoming data
-            size_data = self.recv_all(conn, 4)
-            if not size_data:
-                print("Failed to receive data size.")
-                continue
-            size = struct.unpack("!I", size_data)[0]
+        if not gradients:
+            print("Failed to receive gradients.")
+            return
 
-            # Receive the actual data
-            data = self.recv_all(conn, size)
-            if not data:
-                print("Failed to receive data.")
-                continue
-
-            # response with ACK
-            conn.sendall(b'A')
-
-            compressed_grad = pickle.loads(data)
-            grad = decompress(compressed_grad)
-            
-            if DEBUG_MODE:
-                for param in grad:
-                    print(f"the size of {param}: {len(grad[param])}")
-                    print(f"{param} after decompression:")
-                    for weight in grad[param]:
-                        print(weight)
-            
-            
-            gradients.append(grad)
-            print(f"Received gradients from worker {self.conn_addr_map[conn]}")
-
-        # Received gradients from all workers
         print("All gradients received.")
-        
 
-                        
-
+        # Compute the average gradients
         avg_gradients = {}
         for key in gradients[0].keys():
             avg_gradients[key] = torch.stack([grad[key] for grad in gradients]).mean(
@@ -116,47 +71,66 @@ class Server:
         compressed_avg_gradients = compress(avg_gradients)
         avg_gradients_data = pickle.dumps(compressed_avg_gradients)
 
-        # Send averaged gradients back to all workers
-        for conn in self.connections:
-            # Send the size of the data first
-            conn.sendall(struct.pack("!I", len(avg_gradients_data)))
-            # Sendall the actual data
-            conn.sendall(avg_gradients_data)
-            print(f"Sent averaged gradients to worker {self.conn_addr_map[conn]}")
+        # Send averaged gradients back to all workers concurrently
+        send_tasks = [
+            self.send_avg_grad(writer, avg_gradients_data)
+            for _, writer in self.connections
+        ]
+        await asyncio.gather(*send_tasks)
 
-    def run_server(self) -> None:
-        while self.is_listening:
-            # server accepts connections from all the workers
-            self.worker_connection_handler()
+        # Close worker connections
+        for _, writer in self.connections:
+            writer.close()
+            await writer.wait_closed()
+        self.connections.clear()
+        self.conn_addr_map.clear()
+        print("Closed all worker connections.")
 
-            # server receives gradients from all workers and sends back averaged gradients
-            self.recv_send()
+    async def recv_worker_grad(self, reader):
+        """Receive a single worker's gradient asynchronously"""
+        # Receive the size of the incoming data
+        size_data = await self.recv_all(reader, 4)
+        if not size_data:
+            print("Failed to receive data size.")
+            return None
+        size = struct.unpack("!I", size_data)[0]
 
-            # close all worker connections
-            self.close_worker()
+        # Receive the actual data
+        data = await self.recv_all(reader, size)
+        if not data:
+            print("Failed to receive data.")
+            return None
 
-    def print_menu_options(self) -> None:
-        print("Enter 'q' to close this server.")
+        # Send ACK
+        writer = next(writer for r, writer in self.connections if r == reader)
+        writer.write(b"A")
+        await writer.drain()
 
-    # close the server
-    def close_server(self) -> None:
-        """Close the server"""
-        self.is_listening = False
-        self.server_socket.close()
-        print("Server closed.")
+        compressed_grad = pickle.loads(data)
+        grad = decompress(compressed_grad)
 
-    def handle_user_input(self) -> None:
-        self.print_menu_options()
-        user_input = input()
-        if len(user_input) == 0:
-            print("Invalid option.")
-            return
-        user_input = user_input[0].lower() + user_input[1:]
-        # case: close the server
-        if user_input[0] == "q":
-            self.close_server()
-            return
+        print(f"Received gradients from worker {self.conn_addr_map[writer]}")
+        return grad
+
+    async def send_avg_grad(self, writer, avg_gradients_data):
+        """Send averaged gradients to a worker asynchronously"""
+        writer.write(struct.pack("!I", len(avg_gradients_data)))
+        writer.write(avg_gradients_data)
+        await writer.drain()
+        print(f"Sent averaged gradients to worker {self.conn_addr_map[writer]}")
+
+    async def run_server(self) -> None:
+        """Start the asyncio server"""
+        server = await asyncio.start_server(
+            self.worker_connection_handler, self.host, self.port
+        )
+        addr = server.sockets[0].getsockname()
+        print(f"Server listening on {addr}...")
+
+        async with server:
+            await server.serve_forever()
 
 
 if __name__ == "__main__":
-    server = Server()
+    server = AsyncServer()
+    asyncio.run(server.run_server())

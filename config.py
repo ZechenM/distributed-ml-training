@@ -1,7 +1,7 @@
 from compression import *
 
 # config 1: define compression method
-compression_method = ["no_compress", "rle", "self_quant", "baseline"][1]  # define compression method here by change index
+compression_method = ["no_compress", "rle", "self_quant", "baseline"][2]  # define compression method here by change index
 compression_mapping = {
     "no_compress": (no_compress, no_compress),
     "rle": (rle_compress, rle_decompress),

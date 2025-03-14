@@ -12,22 +12,23 @@ def no_compress(data):
 
 def rle_compress(
     data: Dict[str, torch.Tensor],
-) -> Dict[str, Tuple[List[Tuple[float, int]], Any]]:
+) -> Any:
     """Compress gradients using Run-Length Encoding (RLE)."""
     # {fc.weight: [(-0.1, 3), (0.2, 2), ...], fc.bias: [(0.0, 5), ...]}
     compressed = {}
-    for name, tensor in data.items():
-        tensor_flat = tensor.flatten().tolist()  # Flatten and convert to list
-        tensor_flat = [np.int16(value * 1000) for value in tensor_flat]  # Round to 4 decimal
+    for name, my_tensor in data.items():
+        tensor_flat = my_tensor.flatten().tolist()  # Flatten and convert to list
         compressed_runs = []
         current_value = tensor_flat[0]
         count = 1
+
         for value in tensor_flat[1:]:
             if value == current_value:
                 count += 1
             else:
                 if count > 1:
-                    compressed_runs.append((current_value, count))
+                    compressed_runs.append(current_value)
+                    compressed_runs.append(count)
                 else:
                     compressed_runs.append(current_value)
 
@@ -35,14 +36,20 @@ def rle_compress(
                 count = 1
 
         if count > 1:
-            compressed_runs.append((current_value, count))  # Add the last run
+            compressed_runs.append(current_value)
+            compressed_runs.append(count)
         else:
             compressed_runs.append(current_value)
+
+        compressed_runs = torch.tensor(compressed_runs)
         # Store the compressed runs and the original shape
-        compressed[name] = (compressed_runs, tensor.shape)
+        # compressed[name] = (compressed_runs, my_tensor.shape)
+        compressed[name] = compressed_runs
 
         if DEBUG_MODE and "weight" in name:
-            avg_count = sum(count for _, count in compressed_runs) / float(len(compressed_runs))
+            avg_count = sum(count for _, count in compressed_runs) / float(
+                len(compressed_runs)
+            )
 
             print(f"Tensor size: {len(tensor_flat)}")
             print(f"Original RLE count: {len(compressed_runs)}")
@@ -52,20 +59,28 @@ def rle_compress(
 
 
 def rle_decompress(
-    compressed: Dict[str, Tuple[List[Tuple[float, int]], Any]],
-) -> Dict[str, torch.Tensor]:
+    compressed,
+) -> Any:
     """Decompress gradients using Run-Length Encoding (RLE)."""
     decompressed = {}
-    for name, (runs, original_shape) in compressed.items():
+    # for name, (my_tensor, original_shape) in compressed.items():
+    is_weight = True
+    for name, my_tensor in compressed.items():
         tensor_flat = []
-        for value in runs:
-            if isinstance(value, tuple):
-                value, count = value
+        for idx, value in enumerate(my_tensor):
+            if value >= 2:
+                count = int(value) - 1
+                actual_value = my_tensor[idx - 1]
             else:
                 count = 1
-            tensor_flat.extend([float(value) / 1000] * count)
+                actual_value = value
+            tensor_flat.extend([actual_value] * count)
+
         # Reshape to the original shape
+        original_shape = torch.Size([10, 784]) if is_weight else torch.Size([10])
         decompressed[name] = torch.tensor(tensor_flat).reshape(original_shape)
+        
+        is_weight = False
     return decompressed
 
 
