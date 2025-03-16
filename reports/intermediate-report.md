@@ -139,7 +139,7 @@ There has been no conclusion no far but there will be ...
 
 
 ## 5. Work Distribution
-Zechen Ma (Zee):
+Zechen Ma (Zee): Set up the system infrastructure. Implemented and optimized the gradient compression techniques. 
 
 Zixi Qu (Jessy): Help implmenting gradient compression experiment setup. Provide consultent on machine learning.
 
